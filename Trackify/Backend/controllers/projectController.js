@@ -18,16 +18,32 @@ const getProjects = async (req, res, next) => {
       model: User,
       as: "members",
       attributes: USER_ATTRS,
-      through: { attributes: [] }, // hide junction table fields
+      through: { attributes: [] },
     };
 
-    // non-admin: only projects where user is a member
+    // non-admin: show projects where user is member OR creator OR has tasks assigned
     if (req.user.role !== "admin") {
       const memberProjects = await ProjectMember.findAll({
         where: { userId: req.user.id },
       });
-      const projectIds = memberProjects.map((m) => m.projectId);
-      whereClause = { id: { [Op.in]: projectIds } };
+      const memberProjectIds = memberProjects.map((m) => m.projectId);
+
+      // also find projects where user has tasks assigned to them
+      const assignedTasks = await Task.findAll({
+        where: { assignedToId: req.user.id },
+        attributes: ["projectId"],
+      });
+      const assignedProjectIds = assignedTasks.map((t) => t.projectId);
+
+      // merge all project IDs the user has access to
+      const allProjectIds = [...new Set([...memberProjectIds, ...assignedProjectIds])];
+
+      whereClause = {
+        [Op.or]: [
+          { id: { [Op.in]: allProjectIds } },
+          { createdById: req.user.id },
+        ],
+      };
     }
 
     const { count, rows: projects } = await Project.findAndCountAll({
@@ -39,7 +55,7 @@ const getProjects = async (req, res, next) => {
       order: [["createdAt", "DESC"]],
       limit,
       offset,
-      distinct: true, // needed for accurate count with includes
+      distinct: true,
     });
 
     return res.status(200).json(
@@ -74,9 +90,8 @@ const createProject = async (req, res, next) => {
       createdById: req.user.id,
     });
 
-    // add members via junction table
     if (members.length > 0) {
-      await project.setMembers(members); // Sequelize magic method
+      await project.setMembers(members);
     }
 
     const full = await Project.findByPk(project.id, {
@@ -106,10 +121,13 @@ const getProjectById = async (req, res, next) => {
 
     if (!project) return next(new ApiError(404, "Project not found"));
 
-    // access check for non-admins
+    // non-admin: allow if creator OR member
     if (req.user.role !== "admin") {
       const isMember = project.members.some((m) => m.id === req.user.id);
-      if (!isMember) return next(new ApiError(403, "Access denied to this project"));
+      const isCreator = project.createdById === req.user.id;
+      if (!isMember && !isCreator) {
+        return next(new ApiError(403, "Access denied to this project"));
+      }
     }
 
     const tasks = await Task.findAll({
@@ -141,7 +159,7 @@ const updateProject = async (req, res, next) => {
     if (!project) return next(new ApiError(404, "Project not found"));
 
     const { title, description, members } = req.body;
-    if (title)                    project.title = title;
+    if (title)                     project.title       = title;
     if (description !== undefined) project.description = description;
     await project.save();
 
@@ -168,7 +186,6 @@ const deleteProject = async (req, res, next) => {
     const project = await Project.findByPk(req.params.id);
     if (!project) return next(new ApiError(404, "Project not found"));
 
-    // Tasks deleted via CASCADE (set in association)
     await project.destroy();
 
     return res.status(200).json(

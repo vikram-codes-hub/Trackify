@@ -1,4 +1,4 @@
-name: CI Pipeline
+name: Trackify CI
 
 on:
   push:
@@ -8,11 +8,11 @@ on:
 
 jobs:
   backend:
-    name: Backend Lint & Test
+    name: Backend CI
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: server
+        working-directory: Backend
 
     steps:
       - name: Checkout code
@@ -21,22 +21,20 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: "18"
-          cache: "npm"
-          cache-dependency-path: server/package-lock.json
+          node-version: 18
 
       - name: Install dependencies
         run: npm install
 
-      - name: Run linter
-        run: npm run lint --if-present
+      - name: Check for syntax errors
+        run: node --check index.js
 
   frontend:
-    name: Frontend Build
+    name: Frontend CI
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: client
+        working-directory: Frontend
 
     steps:
       - name: Checkout code
@@ -45,12 +43,10 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: "18"
-          cache: "npm"
-          cache-dependency-path: client/package-lock.json
+          node-version: 18
 
       - name: Install dependencies
-        run: npm install
+        run: npm install --legacy-peer-deps
 
-      - name: Build
+      - name: Build check
         run: npm run build

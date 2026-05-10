@@ -208,6 +208,11 @@ code, pre, .mono { font-family: 'JetBrains Mono', monospace; }
 
 textarea.input, textarea.input-base { resize: vertical; line-height: 1.6; }
 
+select option {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
 /* ─── Labels ─── */
 .form-label {
   display: block;
