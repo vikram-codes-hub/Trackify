@@ -14,7 +14,20 @@ const userRoutes    = require("./routes/userRoutes");
 
 const app = express();
 
-app.use(cors({ origin: process.env.CLIENT_URL || "*" }));
+app.use(cors({
+  origin: function(origin, callback) {
+    if (!origin) return callback(null, true);
+    if (
+      origin === process.env.CLIENT_URL ||
+      origin.endsWith('.vercel.app') ||
+      origin === 'http://localhost:3000'
+    ) {
+      return callback(null, true);
+    }
+    return callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true
+}));
 app.use(express.json());
 app.use(morgan("dev"));
 
