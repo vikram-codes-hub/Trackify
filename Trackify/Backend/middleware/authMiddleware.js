@@ -1,11 +1,10 @@
 const jwt = require("jsonwebtoken");
-const User = require("../models/User");
+const { User } = require("../models");
 const ApiError = require("../utils/apiError");
 
 const verifyToken = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
-
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return next(new ApiError(401, "No token provided, access denied"));
     }
@@ -13,10 +12,10 @@ const verifyToken = async (req, res, next) => {
     const token = authHeader.split(" ")[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    const user = await User.findById(decoded.id);
-    if (!user) {
-      return next(new ApiError(401, "User no longer exists"));
-    }
+    const user = await User.findByPk(decoded.id, {
+      attributes: { exclude: ["password"] },
+    });
+    if (!user) return next(new ApiError(401, "User no longer exists"));
 
     req.user = user;
     next();

@@ -1,16 +1,27 @@
 import { STATUS_OPTIONS, PRIORITY_OPTIONS } from "../utils/constants";
 
+const selectStyle = {
+  background: "rgba(255,255,255,0.04)",
+  border: "1px solid var(--bg-border)",
+  color: "var(--text-primary)",
+  padding: "0.5rem 0.75rem",
+  borderRadius: "8px",
+  fontSize: "0.8125rem",
+  fontFamily: "Inter, sans-serif",
+  outline: "none",
+  cursor: "pointer",
+  appearance: "none",
+};
+
 const FilterBar = ({ filters, onChange }) => {
-  const handleChange = (key, value) => {
-    onChange({ ...filters, [key]: value });
-  };
+  const handle = (key, value) => onChange({ ...filters, [key]: value });
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
       <select
         value={filters.status || ""}
-        onChange={(e) => handleChange("status", e.target.value)}
-        className="input-base w-auto text-sm"
+        onChange={(e) => handle("status", e.target.value)}
+        style={selectStyle}
       >
         <option value="">All Status</option>
         {STATUS_OPTIONS.map((s) => (
@@ -20,8 +31,8 @@ const FilterBar = ({ filters, onChange }) => {
 
       <select
         value={filters.priority || ""}
-        onChange={(e) => handleChange("priority", e.target.value)}
-        className="input-base w-auto text-sm"
+        onChange={(e) => handle("priority", e.target.value)}
+        style={selectStyle}
       >
         <option value="">All Priority</option>
         {PRIORITY_OPTIONS.map((p) => (

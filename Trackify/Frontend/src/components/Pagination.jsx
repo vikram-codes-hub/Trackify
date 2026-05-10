@@ -3,26 +3,32 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 const Pagination = ({ page, totalPages, onPageChange }) => {
   if (totalPages <= 1) return null;
 
+  const btnStyle = (active) => ({
+    width: "32px", height: "32px",
+    borderRadius: "8px",
+    border: `1px solid ${active ? "var(--accent)" : "var(--bg-border)"}`,
+    background: active ? "var(--accent)" : "transparent",
+    color: active ? "#fff" : "var(--text-muted)",
+    fontSize: "0.8125rem",
+    fontWeight: active ? 600 : 400,
+    cursor: "pointer",
+    display: "flex", alignItems: "center", justifyContent: "center",
+    transition: "all 0.15s",
+    fontFamily: "Inter, sans-serif",
+  });
+
   return (
-    <div className="flex items-center justify-center gap-2 mt-6">
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.375rem", marginTop: "2rem" }}>
       <button
         onClick={() => onPageChange(page - 1)}
         disabled={page === 1}
-        className="p-1.5 rounded-lg border border-border text-text-muted hover:text-text-primary hover:border-accent disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        style={{ ...btnStyle(false), opacity: page === 1 ? 0.35 : 1, cursor: page === 1 ? "not-allowed" : "pointer" }}
       >
-        <ChevronLeft size={16} />
+        <ChevronLeft size={15} />
       </button>
 
       {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-        <button
-          key={p}
-          onClick={() => onPageChange(p)}
-          className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
-            p === page
-              ? "bg-accent text-white"
-              : "border border-border text-text-muted hover:text-text-primary hover:border-accent"
-          }`}
-        >
+        <button key={p} onClick={() => onPageChange(p)} style={btnStyle(p === page)}>
           {p}
         </button>
       ))}
@@ -30,9 +36,9 @@ const Pagination = ({ page, totalPages, onPageChange }) => {
       <button
         onClick={() => onPageChange(page + 1)}
         disabled={page === totalPages}
-        className="p-1.5 rounded-lg border border-border text-text-muted hover:text-text-primary hover:border-accent disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        style={{ ...btnStyle(false), opacity: page === totalPages ? 0.35 : 1, cursor: page === totalPages ? "not-allowed" : "pointer" }}
       >
-        <ChevronRight size={16} />
+        <ChevronRight size={15} />
       </button>
     </div>
   );

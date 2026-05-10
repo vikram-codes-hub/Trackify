@@ -1,40 +1,55 @@
 const { validationResult } = require("express-validator");
-const Project = require("../models/Project");
-const Task = require("../models/Task");
+const { Op } = require("sequelize");
+const { Project, User, Task, ProjectMember } = require("../models");
 const ApiError = require("../utils/apiError");
 const ApiResponse = require("../utils/apiResponse");
+
+const USER_ATTRS = ["id", "name", "email"];
 
 // GET /api/projects
 const getProjects = async (req, res, next) => {
   try {
-    const page = parseInt(req.query.page) || 1;
+    const page  = parseInt(req.query.page)  || 1;
     const limit = parseInt(req.query.limit) || 10;
-    const skip = (page - 1) * limit;
+    const offset = (page - 1) * limit;
 
-    // Admin sees all, user sees only projects they are member of
-    const filter =
-      req.user.role === "admin"
-        ? {}
-        : { members: req.user._id };
+    let whereClause = {};
+    let includeMembers = {
+      model: User,
+      as: "members",
+      attributes: USER_ATTRS,
+      through: { attributes: [] }, // hide junction table fields
+    };
 
-    const [projects, total] = await Promise.all([
-      Project.find(filter)
-        .populate("createdBy", "name email")
-        .populate("members", "name email")
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit),
-      Project.countDocuments(filter),
-    ]);
+    // non-admin: only projects where user is a member
+    if (req.user.role !== "admin") {
+      const memberProjects = await ProjectMember.findAll({
+        where: { userId: req.user.id },
+      });
+      const projectIds = memberProjects.map((m) => m.projectId);
+      whereClause = { id: { [Op.in]: projectIds } };
+    }
+
+    const { count, rows: projects } = await Project.findAndCountAll({
+      where: whereClause,
+      include: [
+        { model: User, as: "createdBy", attributes: USER_ATTRS },
+        includeMembers,
+      ],
+      order: [["createdAt", "DESC"]],
+      limit,
+      offset,
+      distinct: true, // needed for accurate count with includes
+    });
 
     return res.status(200).json(
       new ApiResponse(200, {
         projects,
         pagination: {
-          total,
+          total: count,
           page,
           limit,
-          totalPages: Math.ceil(total / limit),
+          totalPages: Math.ceil(count / limit),
         },
       }, "Projects fetched successfully")
     );
@@ -51,20 +66,28 @@ const createProject = async (req, res, next) => {
       return next(new ApiError(400, "Validation failed", errors.array()));
     }
 
-    const { title, description, members } = req.body;
+    const { title, description, members = [] } = req.body;
 
     const project = await Project.create({
       title,
       description,
-      createdBy: req.user._id,
-      members: members || [],
+      createdById: req.user.id,
     });
 
-    await project.populate("createdBy", "name email");
-    await project.populate("members", "name email");
+    // add members via junction table
+    if (members.length > 0) {
+      await project.setMembers(members); // Sequelize magic method
+    }
+
+    const full = await Project.findByPk(project.id, {
+      include: [
+        { model: User, as: "createdBy", attributes: USER_ATTRS },
+        { model: User, as: "members", attributes: USER_ATTRS, through: { attributes: [] } },
+      ],
+    });
 
     return res.status(201).json(
-      new ApiResponse(201, { project }, "Project created successfully")
+      new ApiResponse(201, { project: full }, "Project created successfully")
     );
   } catch (error) {
     next(error);
@@ -74,27 +97,29 @@ const createProject = async (req, res, next) => {
 // GET /api/projects/:id
 const getProjectById = async (req, res, next) => {
   try {
-    const project = await Project.findById(req.params.id)
-      .populate("createdBy", "name email")
-      .populate("members", "name email");
+    const project = await Project.findByPk(req.params.id, {
+      include: [
+        { model: User, as: "createdBy", attributes: USER_ATTRS },
+        { model: User, as: "members", attributes: USER_ATTRS, through: { attributes: [] } },
+      ],
+    });
 
-    if (!project) {
-      return next(new ApiError(404, "Project not found"));
+    if (!project) return next(new ApiError(404, "Project not found"));
+
+    // access check for non-admins
+    if (req.user.role !== "admin") {
+      const isMember = project.members.some((m) => m.id === req.user.id);
+      if (!isMember) return next(new ApiError(403, "Access denied to this project"));
     }
 
-    // Check access
-    const isMember = project.members.some(
-      (m) => m._id.toString() === req.user._id.toString()
-    );
-    if (req.user.role !== "admin" && !isMember) {
-      return next(new ApiError(403, "Access denied to this project"));
-    }
-
-    // Get tasks for this project
-    const tasks = await Task.find({ project: req.params.id })
-      .populate("assignedTo", "name email")
-      .populate("createdBy", "name email")
-      .sort({ createdAt: -1 });
+    const tasks = await Task.findAll({
+      where: { projectId: req.params.id },
+      include: [
+        { model: User, as: "assignedTo", attributes: USER_ATTRS },
+        { model: User, as: "createdBy", attributes: USER_ATTRS },
+      ],
+      order: [["createdAt", "DESC"]],
+    });
 
     return res.status(200).json(
       new ApiResponse(200, { project, tasks }, "Project fetched successfully")
@@ -112,22 +137,25 @@ const updateProject = async (req, res, next) => {
       return next(new ApiError(400, "Validation failed", errors.array()));
     }
 
-    const project = await Project.findById(req.params.id);
-    if (!project) {
-      return next(new ApiError(404, "Project not found"));
-    }
+    const project = await Project.findByPk(req.params.id);
+    if (!project) return next(new ApiError(404, "Project not found"));
 
     const { title, description, members } = req.body;
-    if (title) project.title = title;
+    if (title)                    project.title = title;
     if (description !== undefined) project.description = description;
-    if (members) project.members = members;
-
     await project.save();
-    await project.populate("createdBy", "name email");
-    await project.populate("members", "name email");
+
+    if (members) await project.setMembers(members);
+
+    const full = await Project.findByPk(project.id, {
+      include: [
+        { model: User, as: "createdBy", attributes: USER_ATTRS },
+        { model: User, as: "members", attributes: USER_ATTRS, through: { attributes: [] } },
+      ],
+    });
 
     return res.status(200).json(
-      new ApiResponse(200, { project }, "Project updated successfully")
+      new ApiResponse(200, { project: full }, "Project updated successfully")
     );
   } catch (error) {
     next(error);
@@ -137,14 +165,11 @@ const updateProject = async (req, res, next) => {
 // DELETE /api/projects/:id
 const deleteProject = async (req, res, next) => {
   try {
-    const project = await Project.findById(req.params.id);
-    if (!project) {
-      return next(new ApiError(404, "Project not found"));
-    }
+    const project = await Project.findByPk(req.params.id);
+    if (!project) return next(new ApiError(404, "Project not found"));
 
-    // Delete all tasks under this project too
-    await Task.deleteMany({ project: req.params.id });
-    await project.deleteOne();
+    // Tasks deleted via CASCADE (set in association)
+    await project.destroy();
 
     return res.status(200).json(
       new ApiResponse(200, {}, "Project and its tasks deleted successfully")

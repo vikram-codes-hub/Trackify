@@ -21,11 +21,11 @@ const taskValidator = [
 
   body("project")
     .notEmpty().withMessage("Project ID is required")
-    .isMongoId().withMessage("Invalid project ID"),
+    .isInt({ min: 1 }).withMessage("Invalid project ID"),
 
   body("assignedTo")
     .optional()
-    .isMongoId().withMessage("Invalid user ID"),
+    .isInt({ min: 1 }).withMessage("Invalid user ID"),
 
   body("dueDate")
     .optional()

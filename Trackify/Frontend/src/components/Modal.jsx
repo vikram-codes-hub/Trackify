@@ -11,28 +11,53 @@ const Modal = ({ isOpen, onClose, title, children }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 50,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      padding: "1rem",
+    }}>
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
+        style={{
+          position: "absolute", inset: 0,
+          background: "rgba(0,0,0,0.7)",
+          backdropFilter: "blur(8px)",
+        }}
       />
 
-      {/* Modal box */}
-      <div className="relative w-full max-w-md bg-surface border border-border rounded-2xl shadow-2xl z-10">
+      {/* Modal */}
+      <div className="fade-up" style={{
+        position: "relative", zIndex: 10,
+        width: "100%", maxWidth: "460px",
+        background: "rgba(13,17,23,0.95)",
+        border: "1px solid rgba(255,255,255,0.1)",
+        borderRadius: "20px",
+        boxShadow: "0 24px 64px rgba(0,0,0,0.6), 0 0 0 1px rgba(99,102,241,0.1)",
+        backdropFilter: "blur(20px)",
+        overflow: "hidden",
+      }}>
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <h2 className="text-base font-semibold text-text-primary">{title}</h2>
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "1.25rem 1.5rem",
+          borderBottom: "1px solid rgba(255,255,255,0.07)",
+          background: "rgba(255,255,255,0.02)",
+        }}>
+          <h2 style={{ fontSize: "0.9375rem", fontWeight: 700, color: "var(--text-primary)", letterSpacing: "-0.01em" }}>
+            {title}
+          </h2>
           <button
             onClick={onClose}
-            className="text-text-muted hover:text-text-primary p-1 rounded-lg hover:bg-border transition-colors"
+            className="btn-icon"
+            style={{ width: "30px", height: "30px" }}
           >
-            <X size={18} />
+            <X size={15} />
           </button>
         </div>
 
         {/* Content */}
-        <div className="px-5 py-4">{children}</div>
+        <div style={{ padding: "1.5rem" }}>{children}</div>
       </div>
     </div>
   );

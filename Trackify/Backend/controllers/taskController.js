@@ -1,60 +1,67 @@
 const { validationResult } = require("express-validator");
-const Task = require("../models/Task");
-const Project = require("../models/Project");
+const { Op } = require("sequelize");
+const { Task, User, Project } = require("../models");
 const ApiError = require("../utils/apiError");
 const ApiResponse = require("../utils/apiResponse");
 
-// GET /api/tasks?search=&status=&assignedTo=&project=&page=&limit=
+const USER_ATTRS = ["id", "name", "email"];
+
+// GET /api/tasks?search=&status=&priority=&assignedTo=&project=&page=&limit=
 const getTasks = async (req, res, next) => {
   try {
     const {
       search,
       status,
+      priority,
       assignedTo,
       project,
-      priority,
-      page = 1,
+      page  = 1,
       limit = 10,
     } = req.query;
 
-    const filter = {};
+    const where = {};
 
-    // Non-admin users only see their own tasks
+    // non-admins only see tasks assigned to them
     if (req.user.role !== "admin") {
-      filter.assignedTo = req.user._id;
+      where.assignedToId = req.user.id;
+    } else {
+      if (assignedTo) where.assignedToId = assignedTo;
     }
 
-    if (status) filter.status = status;
-    if (assignedTo && req.user.role === "admin") filter.assignedTo = assignedTo;
-    if (project) filter.project = project;
-    if (priority) filter.priority = priority;
+    if (status)   where.status   = status;
+    if (priority) where.priority = priority;
+    if (project)  where.projectId = project;
 
-    // Text search on title and description
+    // ILIKE = case-insensitive LIKE in PostgreSQL
     if (search) {
-      filter.$text = { $search: search };
+      where[Op.or] = [
+        { title:       { [Op.iLike]: `%${search}%` } },
+        { description: { [Op.iLike]: `%${search}%` } },
+      ];
     }
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const offset = (parseInt(page) - 1) * parseInt(limit);
 
-    const [tasks, total] = await Promise.all([
-      Task.find(filter)
-        .populate("assignedTo", "name email")
-        .populate("project", "title")
-        .populate("createdBy", "name email")
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(parseInt(limit)),
-      Task.countDocuments(filter),
-    ]);
+    const { count, rows: tasks } = await Task.findAndCountAll({
+      where,
+      include: [
+        { model: User, as: "assignedTo", attributes: USER_ATTRS },
+        { model: User, as: "createdBy", attributes: USER_ATTRS },
+        { model: Project, attributes: ["id", "title"] },
+      ],
+      order: [["createdAt", "DESC"]],
+      limit:  parseInt(limit),
+      offset,
+    });
 
     return res.status(200).json(
       new ApiResponse(200, {
         tasks,
         pagination: {
-          total,
-          page: parseInt(page),
+          total: count,
+          page:  parseInt(page),
           limit: parseInt(limit),
-          totalPages: Math.ceil(total / parseInt(limit)),
+          totalPages: Math.ceil(count / parseInt(limit)),
         },
       }, "Tasks fetched successfully")
     );
@@ -73,29 +80,30 @@ const createTask = async (req, res, next) => {
 
     const { title, description, status, priority, assignedTo, project, dueDate } = req.body;
 
-    // Check project exists
-    const projectExists = await Project.findById(project);
-    if (!projectExists) {
-      return next(new ApiError(404, "Project not found"));
-    }
+    const projectExists = await Project.findByPk(project);
+    if (!projectExists) return next(new ApiError(404, "Project not found"));
 
     const task = await Task.create({
       title,
       description,
       status,
       priority,
-      assignedTo: assignedTo || null,
-      project,
-      createdBy: req.user._id,
-      dueDate: dueDate || null,
+      assignedToId: assignedTo || null,
+      projectId:    project,
+      createdById:  req.user.id,
+      dueDate:      dueDate || null,
     });
 
-    await task.populate("assignedTo", "name email");
-    await task.populate("project", "title");
-    await task.populate("createdBy", "name email");
+    const full = await Task.findByPk(task.id, {
+      include: [
+        { model: User, as: "assignedTo", attributes: USER_ATTRS },
+        { model: User, as: "createdBy", attributes: USER_ATTRS },
+        { model: Project, attributes: ["id", "title"] },
+      ],
+    });
 
     return res.status(201).json(
-      new ApiResponse(201, { task }, "Task created successfully")
+      new ApiResponse(201, { task: full }, "Task created successfully")
     );
   } catch (error) {
     next(error);
@@ -105,19 +113,19 @@ const createTask = async (req, res, next) => {
 // GET /api/tasks/:id
 const getTaskById = async (req, res, next) => {
   try {
-    const task = await Task.findById(req.params.id)
-      .populate("assignedTo", "name email")
-      .populate("project", "title")
-      .populate("createdBy", "name email");
+    const task = await Task.findByPk(req.params.id, {
+      include: [
+        { model: User, as: "assignedTo", attributes: USER_ATTRS },
+        { model: User, as: "createdBy", attributes: USER_ATTRS },
+        { model: Project, attributes: ["id", "title"] },
+      ],
+    });
 
-    if (!task) {
-      return next(new ApiError(404, "Task not found"));
-    }
+    if (!task) return next(new ApiError(404, "Task not found"));
 
-    // Non-admin can only view their assigned tasks
     if (
       req.user.role !== "admin" &&
-      task.assignedTo?._id.toString() !== req.user._id.toString()
+      task.assignedToId !== req.user.id
     ) {
       return next(new ApiError(403, "Access denied to this task"));
     }
@@ -138,36 +146,38 @@ const updateTask = async (req, res, next) => {
       return next(new ApiError(400, "Validation failed", errors.array()));
     }
 
-    const task = await Task.findById(req.params.id);
-    if (!task) {
-      return next(new ApiError(404, "Task not found"));
-    }
+    const task = await Task.findByPk(req.params.id);
+    if (!task) return next(new ApiError(404, "Task not found"));
 
-    // Regular user can only update status of their own tasks
     if (req.user.role !== "admin") {
-      if (task.assignedTo?.toString() !== req.user._id.toString()) {
+      // regular user: can only update status of their own task
+      if (task.assignedToId !== req.user.id) {
         return next(new ApiError(403, "You can only update your own tasks"));
       }
-      // Only allow status update for regular users
       if (req.body.status) task.status = req.body.status;
     } else {
-      // Admin can update everything
+      // admin: update everything
       const { title, description, status, priority, assignedTo, dueDate } = req.body;
-      if (title) task.title = title;
+      if (title)                    task.title       = title;
       if (description !== undefined) task.description = description;
-      if (status) task.status = status;
-      if (priority) task.priority = priority;
-      if (assignedTo !== undefined) task.assignedTo = assignedTo;
-      if (dueDate !== undefined) task.dueDate = dueDate;
+      if (status)                   task.status      = status;
+      if (priority)                 task.priority    = priority;
+      if (assignedTo !== undefined) task.assignedToId = assignedTo;
+      if (dueDate !== undefined)    task.dueDate     = dueDate;
     }
 
     await task.save();
-    await task.populate("assignedTo", "name email");
-    await task.populate("project", "title");
-    await task.populate("createdBy", "name email");
+
+    const full = await Task.findByPk(task.id, {
+      include: [
+        { model: User, as: "assignedTo", attributes: USER_ATTRS },
+        { model: User, as: "createdBy", attributes: USER_ATTRS },
+        { model: Project, attributes: ["id", "title"] },
+      ],
+    });
 
     return res.status(200).json(
-      new ApiResponse(200, { task }, "Task updated successfully")
+      new ApiResponse(200, { task: full }, "Task updated successfully")
     );
   } catch (error) {
     next(error);
@@ -177,12 +187,10 @@ const updateTask = async (req, res, next) => {
 // DELETE /api/tasks/:id
 const deleteTask = async (req, res, next) => {
   try {
-    const task = await Task.findById(req.params.id);
-    if (!task) {
-      return next(new ApiError(404, "Task not found"));
-    }
+    const task = await Task.findByPk(req.params.id);
+    if (!task) return next(new ApiError(404, "Task not found"));
 
-    await task.deleteOne();
+    await task.destroy();
 
     return res.status(200).json(
       new ApiResponse(200, {}, "Task deleted successfully")

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, FolderOpen } from "lucide-react";
+import { Plus, FolderOpen, Layers } from "lucide-react";
 import Navbar from "../components/Navbar";
 import Sidebar from "../components/Sidebar";
 import ProjectCard from "../components/ProjectCard";
@@ -14,38 +14,40 @@ import {
 } from "../hooks/useProjects";
 
 const ProjectForm = ({ initial, onSubmit, loading }) => {
-  const [form, setForm] = useState(
-    initial || { title: "", description: "" }
-  );
+  const [form, setForm] = useState(initial || { title: "", description: "" });
 
   return (
-    <div className="space-y-4">
+    <div style={{ display: "flex", flexDirection: "column", gap: "1.125rem" }}>
       <div>
-        <label className="block text-xs font-medium text-text-muted mb-1.5">Title *</label>
+        <label className="form-label">Project title *</label>
         <input
           type="text"
           value={form.title}
           onChange={(e) => setForm({ ...form, title: e.target.value })}
-          placeholder="Project title"
+          placeholder="e.g. Website Redesign"
           className="input-base"
         />
       </div>
       <div>
-        <label className="block text-xs font-medium text-text-muted mb-1.5">Description</label>
+        <label className="form-label">Description</label>
         <textarea
           value={form.description}
           onChange={(e) => setForm({ ...form, description: e.target.value })}
-          placeholder="Optional description"
+          placeholder="What is this project about?"
           rows={3}
-          className="input-base resize-none"
+          className="input-base"
+          style={{ resize: "none" }}
         />
       </div>
       <button
         onClick={() => onSubmit(form)}
         disabled={loading || !form.title.trim()}
-        className="btn-primary w-full"
+        className="btn-primary"
+        style={{ width: "100%", padding: "0.6875rem" }}
       >
-        {loading ? "Saving..." : initial ? "Update Project" : "Create Project"}
+        {loading ? (
+          <div className="spinner" style={{ width: "16px", height: "16px" }} />
+        ) : initial ? "Update Project" : "Create Project"}
       </button>
     </div>
   );
@@ -71,7 +73,7 @@ const Dashboard = () => {
   };
 
   const handleUpdate = async (form) => {
-    await updateProject.mutateAsync({ id: editProject._id, ...form });
+    await updateProject.mutateAsync({ id: editProject.id || editProject._id, ...form });
     setEditProject(null);
   };
 
@@ -82,24 +84,28 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-bg flex flex-col">
+    <div style={{ minHeight: "100vh", background: "var(--bg-primary)", display: "flex", flexDirection: "column" }}>
       <Navbar />
-      <div className="flex flex-1 overflow-hidden">
+      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
         <Sidebar />
-        <main className="flex-1 overflow-y-auto p-6">
+        <main style={{ flex: 1, overflowY: "auto", padding: "1.75rem 2rem" }}>
           {/* Header */}
-          <div className="flex items-center justify-between mb-6">
+          <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: "1.75rem" }}>
             <div>
-              <h1 className="text-xl font-bold text-text-primary">Projects</h1>
-              <p className="text-sm text-text-muted mt-0.5">
+              <div style={{ display: "flex", alignItems: "center", gap: "0.625rem", marginBottom: "0.375rem" }}>
+                <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: "var(--accent-subtle)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--accent)" }}>
+                  <Layers size={16} />
+                </div>
+                <h1 style={{ fontSize: "1.375rem", fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.03em" }}>
+                  Projects
+                </h1>
+              </div>
+              <p style={{ fontSize: "0.8125rem", color: "var(--text-muted)" }}>
                 {pagination?.total || 0} total projects
               </p>
             </div>
             {isAdmin && (
-              <button
-                onClick={() => setShowCreate(true)}
-                className="btn-primary flex items-center gap-2"
-              >
+              <button onClick={() => setShowCreate(true)} className="btn-primary">
                 <Plus size={15} />
                 New Project
               </button>
@@ -108,59 +114,44 @@ const Dashboard = () => {
 
           {/* Grid */}
           {isLoading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "1rem" }}>
               {[...Array(6)].map((_, i) => (
-                <div key={i} className="card h-32 animate-pulse bg-surface" />
+                <div key={i} className="skeleton" style={{ height: "160px" }} />
               ))}
             </div>
           ) : projects.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-center">
-              <FolderOpen size={40} className="text-text-muted mb-3" />
-              <p className="text-text-muted text-sm">No projects yet</p>
+            <div className="empty-state">
+              <div className="empty-icon"><FolderOpen size={24} /></div>
+              <p style={{ fontSize: "1rem", fontWeight: 600, color: "var(--text-secondary)" }}>No projects yet</p>
+              <p style={{ fontSize: "0.875rem", color: "var(--text-muted)" }}>Create your first project to get started.</p>
               {isAdmin && (
-                <button
-                  onClick={() => setShowCreate(true)}
-                  className="btn-primary mt-4"
-                >
-                  Create your first project
+                <button onClick={() => setShowCreate(true)} className="btn-primary" style={{ marginTop: "0.5rem" }}>
+                  <Plus size={15} /> Create project
                 </button>
               )}
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {projects.map((project) => (
-                  <ProjectCard
-                    key={project._id}
-                    project={project}
-                    onEdit={setEditProject}
-                    onDelete={handleDelete}
-                  />
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "1rem" }}>
+                {projects.map((project, i) => (
+                  <div key={project.id || project._id} className="fade-up" style={{ animationDelay: `${i * 0.05}s` }}>
+                    <ProjectCard project={project} onEdit={setEditProject} onDelete={handleDelete} />
+                  </div>
                 ))}
               </div>
-              <Pagination
-                page={page}
-                totalPages={pagination?.totalPages || 1}
-                onPageChange={setPage}
-              />
+              <Pagination page={page} totalPages={pagination?.totalPages || 1} onPageChange={setPage} />
             </>
           )}
         </main>
       </div>
 
-      {/* Create Modal */}
       <Modal isOpen={showCreate} onClose={() => setShowCreate(false)} title="New Project">
         <ProjectForm onSubmit={handleCreate} loading={createProject.isPending} />
       </Modal>
 
-      {/* Edit Modal */}
       <Modal isOpen={!!editProject} onClose={() => setEditProject(null)} title="Edit Project">
         {editProject && (
-          <ProjectForm
-            initial={editProject}
-            onSubmit={handleUpdate}
-            loading={updateProject.isPending}
-          />
+          <ProjectForm initial={editProject} onSubmit={handleUpdate} loading={updateProject.isPending} />
         )}
       </Modal>
     </div>

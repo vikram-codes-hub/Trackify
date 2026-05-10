@@ -1,5 +1,6 @@
+const bcrypt = require("bcryptjs");
 const { validationResult } = require("express-validator");
-const User = require("../models/User");
+const { User } = require("../models");
 const ApiError = require("../utils/apiError");
 const ApiResponse = require("../utils/apiResponse");
 const generateToken = require("../utils/generateToken");
@@ -14,23 +15,18 @@ const register = async (req, res, next) => {
 
     const { name, email, password, role } = req.body;
 
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return next(new ApiError(400, "Email already registered"));
-    }
+    const existing = await User.findOne({ where: { email } });
+    if (existing) return next(new ApiError(400, "Email already registered"));
 
-    const user = await User.create({ name, email, password, role });
-    const token = generateToken(user._id);
+    const hashed = await bcrypt.hash(password, 12);
+    const user = await User.create({ name, email, password: hashed, role });
+
+    const token = generateToken(user.id);
 
     return res.status(201).json(
       new ApiResponse(201, {
         token,
-        user: {
-          _id: user._id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-        },
+        user: { id: user.id, name: user.name, email: user.email, role: user.role },
       }, "Account created successfully")
     );
   } catch (error) {
@@ -48,22 +44,18 @@ const login = async (req, res, next) => {
 
     const { email, password } = req.body;
 
-    const user = await User.findOne({ email }).select("+password");
-    if (!user || !(await user.comparePassword(password))) {
-      return next(new ApiError(401, "Invalid email or password"));
-    }
+    const user = await User.findOne({ where: { email } });
+    if (!user) return next(new ApiError(401, "Invalid email or password"));
 
-    const token = generateToken(user._id);
+    const match = await bcrypt.compare(password, user.password);
+    if (!match) return next(new ApiError(401, "Invalid email or password"));
+
+    const token = generateToken(user.id);
 
     return res.status(200).json(
       new ApiResponse(200, {
         token,
-        user: {
-          _id: user._id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-        },
+        user: { id: user.id, name: user.name, email: user.email, role: user.role },
       }, "Login successful")
     );
   } catch (error) {
@@ -74,7 +66,9 @@ const login = async (req, res, next) => {
 // GET /api/auth/me
 const getMe = async (req, res, next) => {
   try {
-    const user = await User.findById(req.user._id);
+    const user = await User.findByPk(req.user.id, {
+      attributes: { exclude: ["password"] },
+    });
     return res.status(200).json(
       new ApiResponse(200, { user }, "User fetched successfully")
     );

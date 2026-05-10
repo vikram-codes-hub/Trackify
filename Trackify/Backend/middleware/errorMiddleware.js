@@ -1,39 +1,29 @@
-const ApiError = require("../utils/apiError");
-
 const errorHandler = (err, req, res, next) => {
   let statusCode = err.statusCode || 500;
-  let message = err.message || "Internal Server Error";
+  let message    = err.message    || "Internal Server Error";
 
-  // Mongoose bad ObjectId
-  if (err.name === "CastError") {
+  // Sequelize validation error
+  if (err.name === "SequelizeValidationError") {
     statusCode = 400;
-    message = "Invalid ID format";
+    message = err.errors.map((e) => e.message).join(", ");
   }
 
-  // Mongoose duplicate key
-  if (err.code === 11000) {
+  // Sequelize unique constraint (duplicate email etc.)
+  if (err.name === "SequelizeUniqueConstraintError") {
     statusCode = 400;
-    const field = Object.keys(err.keyValue)[0];
+    const field = err.errors[0]?.path || "field";
     message = `${field} already exists`;
   }
 
-  // Mongoose validation error
-  if (err.name === "ValidationError") {
+  // Sequelize foreign key constraint
+  if (err.name === "SequelizeForeignKeyConstraintError") {
     statusCode = 400;
-    message = Object.values(err.errors)
-      .map((e) => e.message)
-      .join(", ");
+    message = "Referenced record does not exist";
   }
 
   // JWT errors
-  if (err.name === "JsonWebTokenError") {
-    statusCode = 401;
-    message = "Invalid token";
-  }
-  if (err.name === "TokenExpiredError") {
-    statusCode = 401;
-    message = "Token expired";
-  }
+  if (err.name === "JsonWebTokenError")  { statusCode = 401; message = "Invalid token"; }
+  if (err.name === "TokenExpiredError")  { statusCode = 401; message = "Token expired"; }
 
   return res.status(statusCode).json({
     success: false,
