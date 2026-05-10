@@ -1,5 +1,5 @@
 const dotenv = require("dotenv");
-dotenv.config(); // must be first so env vars are available to all imports below
+dotenv.config(); 
 
 const express  = require("express");
 const cors     = require("cors");
@@ -11,6 +11,7 @@ const authRoutes    = require("./routes/authRoutes");
 const projectRoutes = require("./routes/projectRoutes");
 const taskRoutes    = require("./routes/taskRoutes");
 const userRoutes    = require("./routes/userRoutes");
+const statsRoutes   = require("./routes/statsRoutes");
 
 const app = express();
 
@@ -20,7 +21,9 @@ app.use(cors({
     if (
       origin === process.env.CLIENT_URL ||
       origin.endsWith('.vercel.app') ||
-      origin === 'http://localhost:3000'
+      origin === 'http://localhost:3000' ||
+      origin === 'http://localhost:3001' ||
+      origin === 'http://localhost:5173'
     ) {
       return callback(null, true);
     }
@@ -39,6 +42,7 @@ app.use("/api/auth",     authRoutes);
 app.use("/api/projects", projectRoutes);
 app.use("/api/tasks",    taskRoutes);
 app.use("/api/users",    userRoutes);
+app.use("/api/stats",    statsRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ success: false, message: "Route not found" });

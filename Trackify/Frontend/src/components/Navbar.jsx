@@ -1,4 +1,4 @@
-import { LogOut, Zap, Bell } from "lucide-react";
+import { LogOut, Zap } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import useAuth from "../hooks/useAuth";
 import Avatar from "./Avatar";
@@ -16,15 +16,16 @@ const Navbar = () => {
     <header style={{
       height: "56px",
       borderBottom: "1px solid var(--bg-border)",
-      background: "rgba(8,11,20,0.85)",
+      background: "rgba(8,11,20,0.9)",
       backdropFilter: "blur(20px)",
       display: "flex",
       alignItems: "center",
-      padding: "0 1.5rem",
+      padding: "0 1.25rem",
       justifyContent: "space-between",
       position: "sticky",
       top: 0,
       zIndex: 40,
+      flexShrink: 0,
     }}>
       {/* Logo */}
       <div
@@ -36,32 +37,37 @@ const Navbar = () => {
           background: "linear-gradient(135deg, #6366F1, #818CF8)",
           display: "flex", alignItems: "center", justifyContent: "center",
           boxShadow: "0 0 12px rgba(99,102,241,0.35)",
+          flexShrink: 0,
         }}>
           <Zap size={14} color="#fff" />
         </div>
-        <span style={{ fontWeight: 800, color: "var(--text-primary)", fontSize: "0.9375rem", letterSpacing: "-0.02em" }}>
+        <span style={{
+          fontWeight: 800, color: "var(--text-primary)",
+          fontSize: "0.9375rem", letterSpacing: "-0.02em",
+        }}>
           Trackify
         </span>
       </div>
 
       {/* Right side */}
       <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-        {/* User info */}
+        {/* User info chip */}
         <div style={{
-          display: "flex", alignItems: "center", gap: "0.625rem",
-          padding: "0.375rem 0.75rem",
+          display: "flex", alignItems: "center", gap: "0.5rem",
+          padding: "0.3125rem 0.625rem",
           background: "var(--bg-card)",
           border: "1px solid var(--bg-border)",
           borderRadius: "10px",
         }}>
           <Avatar name={user?.name} size="sm" />
-          <div style={{ display: "none", flexDirection: "column" }} className="user-meta">
-            <p style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-primary)", lineHeight: 1 }}>{user?.name}</p>
-            <p style={{ fontSize: "0.7rem", color: "var(--text-muted)", textTransform: "capitalize", marginTop: "2px" }}>{user?.role}</p>
-          </div>
-          <div>
-            <p style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-primary)", lineHeight: 1 }}>{user?.name}</p>
-            <p style={{ fontSize: "0.7rem", color: "var(--text-muted)", textTransform: "capitalize", marginTop: "2px" }}>{user?.role}</p>
+          {/* Text hidden on mobile via CSS */}
+          <div className="navbar-user-text" style={{ display: "flex", flexDirection: "column" }}>
+            <p style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-primary)", lineHeight: 1, whiteSpace: "nowrap" }}>
+              {user?.name}
+            </p>
+            <p style={{ fontSize: "0.7rem", color: "var(--text-muted)", textTransform: "capitalize", marginTop: "2px" }}>
+              {user?.role}
+            </p>
           </div>
         </div>
 
@@ -70,7 +76,10 @@ const Navbar = () => {
           onClick={handleLogout}
           title="Logout"
           className="btn-icon"
-          style={{ width: "36px", height: "36px", borderRadius: "10px", border: "1px solid var(--bg-border)", background: "var(--bg-card)" }}
+          style={{
+            width: "36px", height: "36px", borderRadius: "10px",
+            border: "1px solid var(--bg-border)", background: "var(--bg-card)",
+          }}
         >
           <LogOut size={14} />
         </button>

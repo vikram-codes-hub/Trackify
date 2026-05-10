@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { useParams } from "react-router-dom";
-import { Plus, CheckSquare, Users, Flag, Calendar, ListTodo } from "lucide-react";
+import { Plus, CheckSquare, Users, Flag, ListTodo } from "lucide-react";
 import Navbar from "../components/Navbar";
 import Sidebar from "../components/Sidebar";
 import TaskCard from "../components/TaskCard";
+import TaskDetailDrawer from "../components/TaskDetailDrawer";
 import Modal from "../components/Modal";
 import SearchBar from "../components/SearchBar";
 import FilterBar from "../components/FilterBar";
@@ -194,6 +195,7 @@ const ProjectDetail = () => {
   const [page, setPage]       = useState(1);
   const [showCreate, setShowCreate] = useState(false);
   const [editTask, setEditTask]     = useState(null);
+  const [viewTask, setViewTask]     = useState(null); // single drawer at page level
 
   const { data: taskData, isLoading: tasksLoading } = useTasks({
     project: id,
@@ -227,9 +229,9 @@ const ProjectDetail = () => {
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg-primary)", display: "flex", flexDirection: "column" }}>
       <Navbar />
-      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+      <div style={{ display: "flex", flex: 1, overflow: "hidden", minWidth: 0 }}>
         <Sidebar />
-        <main style={{ flex: 1, overflowY: "auto", padding: "1.75rem 2rem" }}>
+        <main className="main-content" style={{ flex: 1, minWidth: 0, overflowY: "auto", overflowX: "hidden", padding: "1.75rem 2rem" }}>
 
           {/* Project Header */}
           {projectLoading ? (
@@ -274,7 +276,7 @@ const ProjectDetail = () => {
           {!tasksLoading && tasks.length > 0 && <StatsBar tasks={tasks} />}
 
           {/* Toolbar */}
-          <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1.25rem", flexWrap: "wrap", alignItems: "center" }}>
+          <div className="filter-bar" style={{ display: "flex", gap: "0.75rem", marginBottom: "1.25rem", flexWrap: "wrap", alignItems: "center" }}>
             <SearchBar value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Search tasks..." />
             <FilterBar filters={filters} onChange={(f) => { setFilters(f); setPage(1); }} />
           </div>
@@ -303,10 +305,15 @@ const ProjectDetail = () => {
             </div>
           ) : (
             <>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "1rem" }}>
+              <div className="task-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "1rem" }}>
                 {tasks.map((task, i) => (
                   <div key={task.id} className="fade-up" style={{ animationDelay: `${i * 0.04}s` }}>
-                    <TaskCard task={task} onEdit={setEditTask} onDelete={handleDelete} />
+                    <TaskCard
+                      task={task}
+                      onEdit={setEditTask}
+                      onDelete={handleDelete}
+                      onView={setViewTask}
+                    />
                   </div>
                 ))}
               </div>
@@ -338,6 +345,13 @@ const ProjectDetail = () => {
           />
         )}
       </Modal>
+      <TaskDetailDrawer
+        task={viewTask}
+        isOpen={!!viewTask}
+        onClose={() => setViewTask(null)}
+        onEdit={(task) => { setViewTask(null); setEditTask(task); }}
+        isAdmin={isAdmin}
+      />
     </div>
   );
 };

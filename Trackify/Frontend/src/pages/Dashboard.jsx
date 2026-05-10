@@ -3,6 +3,7 @@ import { Plus, FolderOpen, Layers } from "lucide-react";
 import Navbar from "../components/Navbar";
 import Sidebar from "../components/Sidebar";
 import ProjectCard from "../components/ProjectCard";
+import StatsPanel from "../components/StatsPanel";
 import Modal from "../components/Modal";
 import Pagination from "../components/Pagination";
 import useAuth from "../hooks/useAuth";
@@ -60,7 +61,7 @@ const Dashboard = () => {
   const [editProject, setEditProject] = useState(null);
 
   const { data, isLoading } = useProjects({ page, limit: 9 });
-  const projects = data?.data?.projects || [];
+  const projects   = data?.data?.projects || [];
   const pagination = data?.data?.pagination;
 
   const createProject = useCreateProject();
@@ -73,7 +74,7 @@ const Dashboard = () => {
   };
 
   const handleUpdate = async (form) => {
-    await updateProject.mutateAsync({ id: editProject.id || editProject._id, ...form });
+    await updateProject.mutateAsync({ id: editProject.id, ...form });
     setEditProject(null);
   };
 
@@ -88,9 +89,13 @@ const Dashboard = () => {
       <Navbar />
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
         <Sidebar />
-        <main style={{ flex: 1, overflowY: "auto", padding: "1.75rem 2rem" }}>
+        <main className="main-content" style={{ flex: 1, minWidth: 0, overflowY: "auto", overflowX: "hidden", padding: "1.75rem 2rem" }}>
+
+          {/* Admin stats panel */}
+          {isAdmin && <StatsPanel />}
+
           {/* Header */}
-          <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: "1.75rem" }}>
+          <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: "1.5rem" }}>
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: "0.625rem", marginBottom: "0.375rem" }}>
                 <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: "var(--accent-subtle)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--accent)" }}>
@@ -112,7 +117,7 @@ const Dashboard = () => {
             )}
           </div>
 
-          {/* Grid */}
+          {/* Project grid */}
           {isLoading ? (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "1rem" }}>
               {[...Array(6)].map((_, i) => (
@@ -123,7 +128,9 @@ const Dashboard = () => {
             <div className="empty-state">
               <div className="empty-icon"><FolderOpen size={24} /></div>
               <p style={{ fontSize: "1rem", fontWeight: 600, color: "var(--text-secondary)" }}>No projects yet</p>
-              <p style={{ fontSize: "0.875rem", color: "var(--text-muted)" }}>Create your first project to get started.</p>
+              <p style={{ fontSize: "0.875rem", color: "var(--text-muted)" }}>
+                {isAdmin ? "Create your first project to get started." : "You'll see projects here once tasks are assigned to you."}
+              </p>
               {isAdmin && (
                 <button onClick={() => setShowCreate(true)} className="btn-primary" style={{ marginTop: "0.5rem" }}>
                   <Plus size={15} /> Create project
@@ -132,9 +139,9 @@ const Dashboard = () => {
             </div>
           ) : (
             <>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "1rem" }}>
+              <div className="project-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "1rem" }}>
                 {projects.map((project, i) => (
-                  <div key={project.id || project._id} className="fade-up" style={{ animationDelay: `${i * 0.05}s` }}>
+                  <div key={project.id} className="fade-up" style={{ animationDelay: `${i * 0.05}s` }}>
                     <ProjectCard project={project} onEdit={setEditProject} onDelete={handleDelete} />
                   </div>
                 ))}
